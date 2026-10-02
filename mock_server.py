@@ -131,5 +131,6 @@ security = TransportSecuritySettings(
 app = mcp.streamable_http_app(
     json_response=True,
     stateless_http=True,
-    transport_security=security
+    transport_security=security,
+    streamable_http_path="/"
 )
