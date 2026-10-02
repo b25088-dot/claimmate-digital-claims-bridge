@@ -1,43 +1,41 @@
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
-from typing import Optional, List
+from mcp.server.mcpserver import MCPServer
+from typing import List
 import uuid
 from datetime import datetime, timezone
 
-app = FastAPI(title="ClaimMate Digital Claims & Authority Bridge")
+mcp = MCPServer("ClaimMate Digital Claims & Authority Bridge")
 
-# ================================================================
-# CAPABILITY 1: DIGIO VERIFIABLE POWER-OF-ATTORNEY (AUTHORITY RAIL)
-# ================================================================
 
-class PoARequest(BaseModel):
-    claimant_name: str
-    policy_number: str
-    tpa_name: str
+@mcp.tool()
+def generate_poa(
+    claimant_name: str,
+    policy_number: str,
+    tpa_name: str,
     scope: str = "INSURANCE_CLAIM_ADJUDICATION"
+) -> dict:
+    """Generate a digital Power of Attorney authorizing ClaimMate to represent a claimant."""
 
-@app.post("/api/v2/authority/poa_generate")
-async def generate_poa(req: PoARequest):
     poa_id = f"did:digio:poa:{uuid.uuid4().hex[:12]}"
+
     return {
         "status": "ISSUED",
         "poa_token": poa_id,
-        "claimant": req.claimant_name,
+        "claimant": claimant_name,
         "authorized_representative": "ClaimMate AI (Autonomous Legal Proxy)",
-        "counterparty": req.tpa_name,
-        "scope": req.scope,
+        "counterparty": tpa_name,
+        "scope": scope,
         "signed_at": datetime.now(timezone.utc).isoformat(),
         "valid_until": "2026-10-31T23:59:59Z",
         "verification_uri": f"https://mock.digio.in/v/{poa_id}"
     }
 
 
-# ================================================================
-# CAPABILITY 2: DIGITAL HEALTH DATA & E-BILL RETRIEVAL
-# ================================================================
-
-@app.get("/api/v1/health_data/fetch_certified_bills")
-async def fetch_certified_bills(policy_number: str, consent_token: str):
+@mcp.tool()
+def fetch_certified_bills(
+    policy_number: str,
+    consent_token: str
+) -> dict:
+    """Fetch authenticated certified hospital bills and supporting medical documents."""
 
     if consent_token == "EXPIRED":
         return {
@@ -70,27 +68,22 @@ async def fetch_certified_bills(policy_number: str, consent_token: str):
     }
 
 
-# ================================================================
-# CAPABILITY 3: TPA CLAIMS & GRIEVANCE ESCALATION PORTAL
-# ================================================================
-
-class AppealSubmission(BaseModel):
-    policy_number: str
-    denial_code: str
-    appeal_summary: str
-    evidence_urls: List[str]
+@mcp.tool()
+def submit_tpa_appeal(
+    policy_number: str,
+    denial_code: str,
+    appeal_summary: str,
+    evidence_urls: List[str],
     escalation_level: str = "TPA_INTERNAL"
+) -> dict:
+    """Submit an evidence-based appeal to the TPA."""
 
-
-@app.post("/api/v1/tpa/submit_appeal")
-async def submit_tpa_appeal(appeal: AppealSubmission):
-
-    # Failure simulation for evaluation testing
-    if appeal.denial_code == "TIMEOUT_TEST":
-        raise HTTPException(
-            status_code=504,
-            detail="TPA Grievance Portal Gateway Timeout"
-        )
+    if denial_code == "TIMEOUT_TEST":
+        return {
+            "success": False,
+            "error": "TPA_GATEWAY_TIMEOUT",
+            "message": "TPA Grievance Portal Gateway Timeout"
+        }
 
     appeal_id = f"APL-{uuid.uuid4().hex[:8].upper()}"
 
@@ -98,34 +91,36 @@ async def submit_tpa_appeal(appeal: AppealSubmission):
         "success": True,
         "appeal_id": appeal_id,
         "status": "UNDER_REVIEW",
-        "escalation_level": appeal.escalation_level,
+        "escalation_level": escalation_level,
         "turnaround_time_hours": 48,
         "submission_timestamp": datetime.now(timezone.utc).isoformat(),
         "acknowledgement": (
-            f"Appeal for denial {appeal.denial_code} "
+            f"Appeal for denial {denial_code} "
             f"formally logged under reference {appeal_id}."
         )
     }
 
 
-# ================================================================
-# PINE LABS DISPUTE & CHARGEBACK EXTENSION
-# ================================================================
-
-class DisputeLockRequest(BaseModel):
-    order_id: str
-    amount_paise: int
+@mcp.tool()
+def create_chargeback_lock(
+    order_id: str,
+    amount_paise: int,
     dispute_reason: str
-
-
-@app.post("/api/v1/pinelabs_ext/chargeback_lock")
-async def create_chargeback_lock(req: DisputeLockRequest):
+) -> dict:
+    """Create a payment dispute lock to prevent further unauthorized settlement."""
 
     return {
         "status": "DISPUTE_RAISED",
         "dispute_ref": f"PL-DISP-{uuid.uuid4().hex[:6].upper()}",
-        "order_id": req.order_id,
-        "amount_inr": req.amount_paise / 100,
-        "reason": req.dispute_reason,
+        "order_id": order_id,
+        "amount_inr": amount_paise / 100,
+        "reason": dispute_reason,
         "mandate_frozen": True
     }
+
+
+# AgenticOrg will connect to the MCP endpoint at /mcp.
+app = mcp.streamable_http_app(
+    json_response=True,
+    stateless_http=True
+)
