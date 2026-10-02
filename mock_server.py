@@ -1,4 +1,5 @@
 from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 from typing import List
 import uuid
 from datetime import datetime, timezone
@@ -120,7 +121,15 @@ def create_chargeback_lock(
 
 
 # AgenticOrg will connect to the MCP endpoint at /mcp.
+security = TransportSecuritySettings(
+    allowed_hosts=[
+        "claimmate-digital-claims-bridge-pIj5hI7n4-claim-mate.vercel.app",
+        "claimmate-digital-claims-bridge-pIj5hI7n4-claim-mate.vercel.app:*"
+    ]
+)
+
 app = mcp.streamable_http_app(
     json_response=True,
-    stateless_http=True
+    stateless_http=True,
+    transport_security=security
 )
