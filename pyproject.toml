@@ -2,6 +2,11 @@
 name = "claimmate-digital-claims-bridge"
 version = "1.0.0"
 requires-python = ">=3.9"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic"
+]
 
 [tool.vercel]
 entrypoint = "mock_server:app"
